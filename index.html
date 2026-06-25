@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luca — Agente Comercial Lucralize</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 1rem; }
+  #app { width: 100%; max-width: 480px; background: #1a1d27; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  #header { background: #185FA5; padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+  #avatar { width: 40px; height: 40px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #185FA5; font-size: 16px; }
+  #header-info h2 { font-size: 15px; font-weight: 600; color: #fff; }
+  #header-info p { font-size: 12px; color: rgba(255,255,255,0.7); }
+  #stage-bar { background: #13162a; padding: 8px 16px; display: flex; gap: 4px; align-items: center; }
+  .seg { flex: 1; height: 3px; border-radius: 2px; background: #2a2d3e; }
+  .seg.done { background: #185FA5; }
+  .seg.now { background: #4a9de0; }
+  #stage-label { font-size: 10px; color: #666; margin-left: 8px; white-space: nowrap; }
+  #messages { height: 380px; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { display: flex; align-items: flex-end; gap: 8px; }
+  .msg.user { flex-direction: row-reverse; }
+  .av { width: 28px; height: 28px; border-radius: 50%; background: #2a2d3e; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #888; flex-shrink: 0; }
+  .bubble { max-width: 78%; padding: 9px 13px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+  .msg.agent .bubble { background: #2a2d3e; border-radius: 16px 16px 16px 4px; color: #e0e0e0; }
+  .msg.user .bubble { background: #185FA5; border-radius: 16px 16px 4px 16px; color: #fff; }
+  .msg.typing .bubble { color: #666; font-style: italic; font-size: 13px; }
+  #quick { padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 6px; background: #13162a; }
+  .qb { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid #2a2d3e; background: transparent; color: #aaa; cursor: pointer; transition: all 0.15s; }
+  .qb:hover { background: #2a2d3e; color: #fff; }
+  #input-area { padding: 12px 16px; background: #13162a; display: flex; gap: 8px; border-top: 1px solid #2a2d3e; }
+  #inp { flex: 1; background: #2a2d3e; border: none; border-radius: 24px; padding: 10px 16px; font-size: 14px; color: #e0e0e0; outline: none; }
+  #inp::placeholder { color: #555; }
+  #sbtn { width: 40px; height: 40px; border-radius: 50%; background: #185FA5; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
+  #sbtn:hover { background: #1a6fbe; }
+  #sbtn:disabled { opacity: 0.4; cursor: default; }
+  #sbtn svg { fill: white; }
+  #errmsg { font-size: 11px; color: #e05555; padding: 4px 16px 8px; background: #13162a; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div id="avatar">L</div>
+    <div id="header-info">
+      <h2>Luca · Lucralize</h2>
+      <p>Consultor comercial virtual</p>
+    </div>
+  </div>
+  <div id="stage-bar">
+    <div class="seg now" id="s0"></div>
+    <div class="seg" id="s1"></div>
+    <div class="seg" id="s2"></div>
+    <div class="seg" id="s3"></div>
+    <div class="seg" id="s4"></div>
+    <span id="stage-label">boas-vindas</span>
+  </div>
+  <div id="messages"></div>
+  <div id="quick"></div>
+  <div id="input-area">
+    <input id="inp" type="text" placeholder="Digite uma mensagem..." autocomplete="off" />
+    <button id="sbtn">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </div>
+  <div id="errmsg"></div>
+</div>
+
+<script>
+const PROXY = "https://agendo-proxy-production.up.railway.app/chat";
+
+const SYS = `Você é Luca, consultor comercial virtual da Lucralize. Atende leads vindos de redes sociais e os guia até o agendamento de uma conversa com um especialista.
+
+A Lucralize tem duas frentes:
+- Lucralize Tech: contabilidade especializada para empresas e profissionais de tecnologia (startups, SaaS, devs, agências tech)
+- Lucralize Contabilidade: para Comércio, Serviços e Indústrias em geral
+
+Fluxo de atendimento:
+1. Boas-vindas calorosas
+2. Entender o tipo de negócio do lead
+3. Direcionar para a unidade certa (Tech ou Contabilidade)
+4. Identificar a principal dor (sem contador, quer trocar, quer abrir empresa, dúvida fiscal)
+5. Mostrar como a Lucralize resolve isso de forma próxima e consultiva
+6. Propor próximo passo: agendar conversa com especialista
+
+Regras:
+- Mensagens curtas, estilo WhatsApp, máximo 4 linhas
+- Tom próximo e profissional, sem ser formal demais
+- Nunca invente preços ou promessas sem base
+- Termine sempre com pergunta ou call to action claro
+- Responda apenas em português brasileiro
+- Texto puro, sem asteriscos, sem markdown, sem listas com traço`;
+
+const STAGES = ["boas-vindas","qualificação","diagnóstico","apresentação","fechamento"];
+const QUICK = [
+  ["Oi, vi no Instagram!","Quero saber sobre contabilidade","Tenho uma empresa de tech"],
+  ["Sou do comércio","Trabalho com TI / software","Quero abrir uma empresa"],
+  ["Tô sem contador","Quero trocar de contabilidade","Tenho dúvidas fiscais"],
+  ["Quanto custa?","Como funciona?","Atendem minha região?"],
+  ["Quero agendar","Prefiro WhatsApp","Vou pensar e volto"]
+];
+
+let hist = [], stage = 0, busy = false;
+const msgsEl = document.getElementById("messages");
+const inpEl = document.getElementById("inp");
+const sbtn = document.getElementById("sbtn");
+const quickEl = document.getElementById("quick");
+const errEl = document.getElementById("errmsg");
+
+function setStage(n) {
+  stage = Math.min(n, 4);
+  document.getElementById("stage-label").textContent = STAGES[stage];
+  for (let i = 0; i < 5; i++) {
+    document.getElementById("s" + i).className = "seg" + (i < stage ? " done" : i === stage ? " now" : "");
+  }
+  quickEl.innerHTML = "";
+  QUICK[stage].forEach(t => {
+    const b = document.createElement("button");
+    b.className = "qb"; b.textContent = t;
+    b.onclick = () => { if (!busy) { inpEl.value = t; send(); } };
+    quickEl.appendChild(b);
+  });
+}
+
+function addMsg(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + role;
+  const av = document.createElement("div"); av.className = "av";
+  av.textContent = role.includes("agent") ? "L" : "Eu";
+  const bub = document.createElement("div"); bub.className = "bubble";
+  bub.textContent = text;
+  wrap.appendChild(av); wrap.appendChild(bub);
+  msgsEl.appendChild(wrap);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  return wrap;
+}
+
+function showTyping() { const el = addMsg("agent typing", "digitando..."); el.id = "typ"; }
+function removeTyping() { const t = document.getElementById("typ"); if (t) t.remove(); }
+
+async function callAgent(userText) {
+  busy = true; sbtn.disabled = true; errEl.textContent = "";
+  const isInit = userText === "__init__";
+  const messages = isInit
+    ? [{ role: "user", content: "Inicie a conversa com uma saudação curta e acolhedora, apresentando-se como Luca da Lucralize." }]
+    : hist;
+  showTyping();
+  try {
+    const res = await fetch(PROXY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system: SYS, messages, max_tokens: 300 })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Erro " + res.status);
+    const reply = data.content?.[0]?.text?.trim();
+    if (!reply) throw new Error("Resposta vazia");
+    hist.push({ role: "assistant", content: reply });
+    removeTyping(); addMsg("agent", reply); setStage(stage + 1);
+  } catch(e) {
+    removeTyping();
+    errEl.textContent = "Erro: " + e.message;
+    addMsg("agent typing", "Ops, tive um problema. Pode tentar novamente?");
+  }
+  busy = false; sbtn.disabled = false; inpEl.focus();
+}
+
+async function send() {
+  const txt = inpEl.value.trim();
+  if (!txt || busy) return;
+  inpEl.value = "";
+  addMsg("user", txt);
+  hist.push({ role: "user", content: txt });
+  await callAgent(txt);
+}
+
+sbtn.onclick = send;
+inpEl.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+setStage(0);
+callAgent("__init__");
+</script>
+</body>
+</html>
