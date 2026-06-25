@@ -127,7 +127,7 @@ async function callAgent(userText) {
     const res = await fetch(PROXY, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, max_tokens: 300 })
+      body: JSON.stringify({ messages, max_tokens: 300, is_init: isInit })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "Erro " + res.status);
